@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>짤 업로드</title>
+  <style>
+    .dropzone {
+      border: 2px dashed #aaa;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+    .dropzone.dragover {
+      background: #f0f0f0;
+      border-color: #333;
+    }
+    img.preview {
+      max-width: 300px;
+      display: block;
+      margin: 10px auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>짤 업로드</h1>
+
+  <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
+    <!-- 드롭존 -->
+    <div id="dropzone" class="dropzone">
+      여기에 드래그하거나<br>
+      Ctrl+V 로 붙여넣기<br>
+      (또는 클릭)
+    </div>
+
+    <!-- 실제 file input (숨김) -->
+    <input
+      type="file"
+      id="fileInput"
+      name="image"
+      accept="image/*"
+      hidden
+      required
+    >
+
+    <img id="preview" class="preview" hidden>
+
+    <div>
+      <label>기본 자막 (title)</label><br>
+      <input type="text" name="title" required>
+    </div>
+
+    <div>
+      <label>검색용 meta (쉼표로 구분)</label><br>
+      <input type="text" name="meta">
+    </div>
+
+    <button type="submit">업로드</button>
+  </form>
+
+  <p><a href="/">← 검색으로 돌아가기</a></p>
+
+  <script>
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("fileInput");
+    const preview = document.getElementById("preview");
+
+    // 클릭 → 파일 선택
+    dropzone.addEventListener("click", () => fileInput.click());
+
+    // 파일 선택
+    fileInput.addEventListener("change", () => {
+      handleFile(fileInput.files[0]);
+    });
+
+    // 드래그 앤 드롭
+    dropzone.addEventListener("dragover", e => {
+      e.preventDefault();
+      dropzone.classList.add("dragover");
+    });
+
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.classList.remove("dragover");
+    });
+
+    dropzone.addEventListener("drop", e => {
+      e.preventDefault();
+      dropzone.classList.remove("dragover");
+
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        fileInput.files = e.dataTransfer.files;
+        handleFile(file);
+      }
+    });
+
+    // 붙여넣기 (Ctrl+V)
+    document.addEventListener("paste", e => {
+      const item = [...e.clipboardData.items]
+        .find(i => i.type.startsWith("image/"));
+
+      if (item) {
+        const file = item.getAsFile();
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        fileInput.files = dt.files;
+        handleFile(file);
+      }
+    });
+
+    function handleFile(file) {
+      if (!file.type.startsWith("image/")) return;
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        preview.src = e.target.result;
+        preview.hidden = false;
+      };
+      reader.readAsDataURL(file);
+    }
+  </script>
+</body>
+</html>

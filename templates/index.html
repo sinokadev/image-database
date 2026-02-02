@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>짤 검색기</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <h1>짤 검색</h1>
+
+  <button onclick="window.location.href = '/upload';">새로 업로드하기</button>
+  <form method="get">
+    <input
+      type="text"
+      name="q"
+      placeholder="검색어"
+      value="{{ query }}"
+      autofocus
+    >
+  </form>
+
+    <div class="grid">
+    {% for images in images %}
+        <div class="images">
+        <img
+            src="/images/{{ images.image }}"
+            loading="lazy"
+            id="img-{{ loop.index }}"
+        >
+        <p>{{ images.title }}</p>
+        <button onclick="copyImage('img-{{ loop.index }}')">
+            복사
+        </button>
+        <button onclick="window.location.href = '/edit/{{ images.image }}';">수정</button>
+
+<form
+  action="/delete/{{ images.image }}"
+  method="post"
+  style="display:inline"
+  onsubmit="return confirm('정말 삭제할까요?');"
+>
+  <button type="submit">삭제</button>
+</form>
+
+        </div>
+    {% endfor %}
+    </div>
+
+<script>
+async function copyImage(imgId) {
+  const img = document.getElementById(imgId);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+
+  const blob = await new Promise(resolve =>
+    canvas.toBlob(resolve, "image/png")
+  );
+
+  await navigator.clipboard.write([
+    new ClipboardItem({ "image/png": blob })
+  ]);
+}
+</script>
+
+
+
+</body>
+</html>
