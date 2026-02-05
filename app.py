@@ -171,7 +171,7 @@ async def upload_image(
     })
     save_images(images)
 
-    print(f"Upload image ({filename}, {user_name})")
+    logger.info(f"Upload image ({filename}, {user_name})")
 
     return RedirectResponse("/", status_code=303)
 
@@ -213,7 +213,7 @@ def edit_image(
 
     save_images(images)
 
-    print(f"Edit image ({image_name}, {user_name})")
+    logger.info(f"Edit image ({image_name}, {user_name})")
 
     return RedirectResponse("/", status_code=303)
 
@@ -235,6 +235,6 @@ def delete_image(image_name: str, user_name: str = Depends(verify_permission("de
     #     image_path.unlink()
     # 메타데이터에서만 삭제해서 검색만 안되도록
 
-    print(f"Delete image ({image_name}, {user_name})")
+    logger.info(f"Delete image ({image_name}, {user_name})")
 
     return RedirectResponse("/", status_code=303)
