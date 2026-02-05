@@ -1,6 +1,8 @@
 import json
 import uuid
 import os
+import logging
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
 import dotenv
@@ -11,10 +13,37 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+# --------------------
+# init
+# --------------------
+
 dotenv.load_dotenv()
 
+# Logging
+os.makedirs('logs', exist_ok=True)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+handler = TimedRotatingFileHandler(
+    'logs/info.log', 
+    when="midnight", 
+    interval=1, 
+    backupCount=7,
+    encoding='utf-8'
+)
+
+handler.suffix = "%Y-%m-%d"
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+
+logger.addHandler(handler)
+
+# FastAPI
 app = FastAPI()
 
+# Path
 IMAGES_DIR = Path("images")
 META_PATH = Path("metadata.json")
 USER_PATH = Path("user.json")
@@ -24,6 +53,7 @@ IMAGES_DIR.mkdir(exist_ok=True)
 app.mount("/images", StaticFiles(directory="images"), name="images")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Jinja
 templates = Jinja2Templates(directory="templates")
 
 # --------------------
