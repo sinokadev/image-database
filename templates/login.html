@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Login</title>
+</head>
+<body>
+    <h2>로그인</h2>
+
+    {% if error %}
+    <p style="color: red;">{{ error }}</p>
+    {% endif %}
+
+    <form action="/getjwt" method="post">
+        <div>
+            <label for="token">토큰:</label>
+            <input type="password" id="token" name="token" required>
+        </div>
+        <br>
+        <button type="submit">로그인</button>
+    </form>
+</body>
+</html>

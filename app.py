@@ -4,12 +4,13 @@ import os
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
+from datetime import datetime, timezone, timedelta
 
 import dotenv
 from jose import jwt, JWTError
 
 from fastapi import FastAPI, Request, UploadFile, Form, HTTPException, status, Cookie, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -86,23 +87,20 @@ def verify_permission(required_role: str):
         try:
             payload = jwt.decode(access_token, os.environ["JWT_SECRET"], algorithms=["HS256"])
             user_token = payload.get("sub")
-
-            user = users.get(user_token)
-
-            if not user:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a registered token")
-
-            permissions = user.get("permission", [])
-
-            if required_role in permissions:
-                return user.get("name", "Unknown User")
-            else:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
-                
         except JWTError:
             raise HTTPException(status_code=401, detail="Invalid JWT token")
-        except Exception:
-            raise HTTPException(status_code=500, detail="Internal Server Error")
+
+        user = users.get(user_token)
+
+        if not user:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a registered token")
+
+        permissions = user.get("permission", [])
+
+        if required_role in permissions:
+            return user.get("name", "Unknown User")
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
             
     return _verify
 
@@ -135,6 +133,40 @@ def index(request: Request, q: str = ""):
         }
     )
 
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.post("/getjwt")
+def get_jwt(
+    request: Request, 
+    token: str = Form(...),
+    users: dict = Depends(load_users)
+):
+    user_info = users.get(token)
+
+    if not user_info:
+        return templates.TemplateResponse("login.html", {
+            "request": request, 
+            "error": "Invalid Key!"
+        })
+
+    expire = datetime.now(timezone.utc) + timedelta(days=365)
+    to_encode = {"sub": token, "exp": expire}
+    encoded_jwt = jwt.encode(to_encode, os.environ["JWT_SECRET"], algorithm="HS256")
+
+    redirect = RedirectResponse(url="/", status_code=303)
+    redirect.set_cookie(
+        key="access_token", 
+        value=encoded_jwt, 
+        httponly=True, 
+        max_age=31536000,
+        samesite="lax"
+    )
+    
+    logger.info(f"User {user_info.get('name')} logged in with token.")
+    
+    return redirect
 
 @app.get("/upload", response_class=HTMLResponse)
 def upload_page(
