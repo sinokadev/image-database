@@ -1,16 +1,23 @@
 import json
 import uuid
+import os
 from pathlib import Path
 
-from fastapi import FastAPI, Request, UploadFile, Form
+import dotenv
+from jose import jwt, JWTError
+
+from fastapi import FastAPI, Request, UploadFile, Form, HTTPException, status, Cookie, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+
+dotenv.load_dotenv()
 
 app = FastAPI()
 
 IMAGES_DIR = Path("images")
 META_PATH = Path("metadata.json")
+USER_PATH = Path("user.json")
 
 IMAGES_DIR.mkdir(exist_ok=True)
 
@@ -23,17 +30,51 @@ templates = Jinja2Templates(directory="templates")
 # utils
 # --------------------
 
-def load_images():
+def load_images() -> dict:
     if not META_PATH.exists():
         return []
     return json.loads(META_PATH.read_text(encoding="utf-8"))
-
 
 def save_images(data):
     META_PATH.write_text(
         json.dumps(data, ensure_ascii=False, indent=2),
         encoding="utf-8"
     )
+
+def load_users():
+    if not USER_PATH.exists():
+        return {}
+    return json.loads(USER_PATH.read_text(encoding="utf-8"))
+
+def verify_permission(required_role: str):
+    async def _verify(access_token: str = Cookie(None)):
+        users: dict = load_users()
+
+        if not access_token:
+            raise HTTPException(status_code=401, detail="Missing JWT token")
+
+        try:
+            payload = jwt.decode(access_token, os.environ["JWT_SECRET"], algorithms=["HS256"])
+            user_token = payload.get("sub")
+
+            user = users.get(user_token)
+
+            if not user:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a registered token")
+
+            permissions = user.get("permission", [])
+
+            if required_role in permissions:
+                return user.get("name", "Unknown User")
+            else:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+                
+        except JWTError:
+            raise HTTPException(status_code=401, detail="Invalid JWT token")
+        except Exception:
+            raise HTTPException(status_code=500, detail="Internal Server Error")
+            
+    return _verify
 
 
 def normalize(s: str) -> str:
@@ -66,10 +107,15 @@ def index(request: Request, q: str = ""):
 
 
 @app.get("/upload", response_class=HTMLResponse)
-def upload_page(request: Request):
+def upload_page(
+    request: Request,
+    user_name: str = Depends(verify_permission("upload"))
+):
     return templates.TemplateResponse(
         "upload.html",
-        {"request": request}
+        {
+            "request": request,
+        }
     )
 
 
@@ -77,7 +123,8 @@ def upload_page(request: Request):
 async def upload_image(
     image: UploadFile,
     title: str = Form(...),
-    meta: str = Form("")
+    meta: str = Form(""),
+    user_name: str = Depends(verify_permission("upload"))
 ):
     ext = Path(image.filename).suffix
     filename = f"{uuid.uuid4().hex}{ext}"
@@ -94,14 +141,16 @@ async def upload_image(
     })
     save_images(images)
 
+    print(f"Upload image ({filename}, {user_name})")
+
     return RedirectResponse("/", status_code=303)
 
-# --------------------
-# ✏️ 수정 (title / meta만)
-# --------------------
-
 @app.get("/edit/{image_name}", response_class=HTMLResponse)
-def edit_page(request: Request, image_name: str):
+def edit_page(
+    request: Request,
+    image_name: str,
+    user_name: str = Depends(verify_permission("edit"))
+):
     images = load_images()
     item = next((i for i in images if i["image"] == image_name), None)
 
@@ -121,7 +170,8 @@ def edit_page(request: Request, image_name: str):
 def edit_image(
     image_name: str,
     title: str = Form(...),
-    meta: str = Form("")
+    meta: str = Form(""),
+    user_name: str = Depends(verify_permission("edit"))
 ):
     images = load_images()
 
@@ -132,6 +182,9 @@ def edit_image(
             break
 
     save_images(images)
+
+    print(f"Edit image ({image_name}, {user_name})")
+
     return RedirectResponse("/", status_code=303)
 
 # --------------------
@@ -139,7 +192,7 @@ def edit_image(
 # --------------------
 
 @app.post("/delete/{image_name}")
-def delete_image(image_name: str):
+def delete_image(image_name: str, user_name: str = Depends(verify_permission("delete"))):
     images = load_images()
 
     # metadata에서 제거
@@ -150,5 +203,7 @@ def delete_image(image_name: str):
     image_path = IMAGES_DIR / image_name
     if image_path.exists():
         image_path.unlink()
+
+    print(f"Delete image ({image_name}, {user_name})")
 
     return RedirectResponse("/", status_code=303)
