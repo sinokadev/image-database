@@ -200,9 +200,10 @@ def delete_image(image_name: str, user_name: str = Depends(verify_permission("de
     save_images(images)
 
     # 실제 파일 삭제
-    image_path = IMAGES_DIR / image_name
-    if image_path.exists():
-        image_path.unlink()
+    # image_path = IMAGES_DIR / image_name
+    # if image_path.exists():
+    #     image_path.unlink()
+    # 메타데이터에서만 삭제해서 검색만 안되도록
 
     print(f"Delete image ({image_name}, {user_name})")
 
