@@ -102,10 +102,22 @@ def load_images() -> list:
     return load_images_cached()
 
 def save_images(data):
+    global IMAGES_CACHE, IMAGES_MTIME
+
     META_PATH.write_text(
         json.dumps(data, ensure_ascii=False, indent=2),
         encoding="utf-8"
     )
+
+    # 캐시 업데이트
+    IMAGES_CACHE = data
+
+    # 파일 시스템에서 다시 mtime 가져오기
+    try:
+        IMAGES_MTIME = META_PATH.stat().st_mtime
+    except FileNotFoundError:
+        IMAGES_MTIME = 0
+
 
 def load_users():
     return load_users_cached()
