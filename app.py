@@ -236,21 +236,29 @@ async def upload_image(
     ext = Path(image.filename).suffix
     filename = f"{uuid.uuid4().hex}{ext}"
 
+    # 이미지 저장
     image_path = IMAGES_DIR / filename
     with open(image_path, "wb") as f:
         f.write(await image.read())
 
+    # 메타데이터 불러오기
     images = load_images()
+
+    # 이미지 정보 추가 (업로더 이름 포함)
     images.append({
         "image": filename,
         "title": title,
-        "meta": [m.strip() for m in meta.split(",") if m.strip()]
+        "meta": [m.strip() for m in meta.split(",") if m.strip()],
+        "uploaded_by": user_name  # ← 사용자 이름 추가
     })
+
+    # 저장
     save_images(images)
 
     logger.info(f"Upload image ({filename}, {user_name})")
 
     return RedirectResponse("/", status_code=303)
+
 
 @app.get("/edit/{image_name}", response_class=HTMLResponse)
 def edit_page(
@@ -263,6 +271,10 @@ def edit_page(
 
     if not item:
         return RedirectResponse("/", status_code=303)
+
+    # 본인이 업로드한 이미지인지 검증
+    if item.get("uploaded_by") != user_name:
+        raise HTTPException(status_code=403, detail="You can only edit your own images.")
 
     return templates.TemplateResponse(
         "edit.html",
@@ -281,18 +293,25 @@ def edit_image(
     user_name: str = Depends(verify_permission("edit"))
 ):
     images = load_images()
+    item = next((i for i in images if i["image"] == image_name), None)
 
-    for item in images:
-        if item["image"] == image_name:
-            item["title"] = title
-            item["meta"] = [m.strip() for m in meta.split(",") if m.strip()]
-            break
+    if not item:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # 본인이 업로드한 이미지인지 검증
+    if item.get("uploaded_by") != user_name:
+        raise HTTPException(status_code=403, detail="You can only edit your own images.")
+
+    # 수정
+    item["title"] = title
+    item["meta"] = [m.strip() for m in meta.split(",") if m.strip()]
 
     save_images(images)
 
     logger.info(f"Edit image ({image_name}, {user_name})")
 
     return RedirectResponse("/", status_code=303)
+
 
 # --------------------
 # 🗑️ 삭제 (파일 + 메타)
@@ -302,16 +321,26 @@ def edit_image(
 def delete_image(image_name: str, user_name: str = Depends(verify_permission("delete"))):
     images = load_images()
 
+    # 삭제할 이미지 찾기
+    item = next((i for i in images if i["image"] == image_name), None)
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # 본인이 업로드한 이미지인지 검증
+    if item.get("uploaded_by") != user_name:
+        raise HTTPException(status_code=403, detail="You can only delete your own images.")
+
     # metadata에서 제거
     images = [i for i in images if i["image"] != image_name]
     save_images(images)
 
-    # 실제 파일 삭제
+    # 실제 파일 삭제 (원하면 활성화 가능)
     # image_path = IMAGES_DIR / image_name
     # if image_path.exists():
     #     image_path.unlink()
-    # 메타데이터에서만 삭제해서 검색만 안되도록
 
     logger.info(f"Delete image ({image_name}, {user_name})")
 
     return RedirectResponse("/", status_code=303)
+
