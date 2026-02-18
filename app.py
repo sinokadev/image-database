@@ -61,10 +61,45 @@ templates = Jinja2Templates(directory="templates")
 # utils
 # --------------------
 
-def load_images() -> dict:
-    if not META_PATH.exists():
+IMAGES_CACHE = []
+IMAGES_MTIME = 0
+
+def load_images_cached():
+    global IMAGES_CACHE, IMAGES_MTIME
+
+    try:
+        mtime = META_PATH.stat().st_mtime
+    except FileNotFoundError:
         return []
-    return json.loads(META_PATH.read_text(encoding="utf-8"))
+
+    if IMAGES_MTIME != mtime:
+        with META_PATH.open("r", encoding="utf-8") as f:
+            IMAGES_CACHE = json.load(f)
+        IMAGES_MTIME = mtime
+
+    return IMAGES_CACHE
+
+USERS_CACHE = {}
+USERS_MTIME = 0
+
+def load_users_cached():
+    global USERS_CACHE, USERS_MTIME
+
+    try:
+        mtime = USER_PATH.stat().st_mtime
+    except FileNotFoundError:
+        return {}
+
+    if USERS_MTIME != mtime:
+        with USER_PATH.open("r", encoding="utf-8") as f:
+            USERS_CACHE = json.load(f)
+        USERS_MTIME = mtime
+
+    return USERS_CACHE
+
+
+def load_images() -> list:
+    return load_images_cached()
 
 def save_images(data):
     META_PATH.write_text(
@@ -73,9 +108,7 @@ def save_images(data):
     )
 
 def load_users():
-    if not USER_PATH.exists():
-        return {}
-    return json.loads(USER_PATH.read_text(encoding="utf-8"))
+    return load_users_cached()
 
 def verify_permission(required_role: str):
     async def _verify(access_token: str = Cookie(None)):
