@@ -272,9 +272,12 @@ def edit_page(
     if not item:
         return RedirectResponse("/", status_code=303)
 
-    # 본인이 업로드한 이미지인지 검증
-    if item.get("uploaded_by") != user_name:
-        raise HTTPException(status_code=403, detail="You can only edit your own images.")
+    # admin이면 본인 검증 생략
+    users = load_users()
+    current_user = users.get(next((u for u, v in users.items() if v.get("name") == user_name), None))
+    if "admin" not in current_user.get("permission", []):
+        if item.get("uploaded_by") != user_name:
+            raise HTTPException(status_code=403, detail="You can only edit your own images.")
 
     return templates.TemplateResponse(
         "edit.html",
@@ -298,9 +301,12 @@ def edit_image(
     if not item:
         raise HTTPException(status_code=404, detail="Image not found")
 
-    # 본인이 업로드한 이미지인지 검증
-    if item.get("uploaded_by") != user_name:
-        raise HTTPException(status_code=403, detail="You can only edit your own images.")
+    # admin이면 본인 검증 생략
+    users = load_users()
+    current_user = users.get(next((u for u, v in users.items() if v.get("name") == user_name), None))
+    if "admin" not in current_user.get("permission", []):
+        if item.get("uploaded_by") != user_name:
+            raise HTTPException(status_code=403, detail="You can only edit your own images.")
 
     # 수정
     item["title"] = title
@@ -313,6 +319,7 @@ def edit_image(
     return RedirectResponse("/", status_code=303)
 
 
+
 # --------------------
 # 🗑️ 삭제 (파일 + 메타)
 # --------------------
@@ -320,16 +327,17 @@ def edit_image(
 @app.post("/delete/{image_name}")
 def delete_image(image_name: str, user_name: str = Depends(verify_permission("delete"))):
     images = load_images()
-
-    # 삭제할 이미지 찾기
     item = next((i for i in images if i["image"] == image_name), None)
 
     if not item:
         raise HTTPException(status_code=404, detail="Image not found")
 
-    # 본인이 업로드한 이미지인지 검증
-    if item.get("uploaded_by") != user_name:
-        raise HTTPException(status_code=403, detail="You can only delete your own images.")
+    # admin이면 본인 검증 생략
+    users = load_users()
+    current_user = users.get(next((u for u, v in users.items() if v.get("name") == user_name), None))
+    if "admin" not in current_user.get("permission", []):
+        if item.get("uploaded_by") != user_name:
+            raise HTTPException(status_code=403, detail="You can only delete your own images.")
 
     # metadata에서 제거
     images = [i for i in images if i["image"] != image_name]
@@ -343,4 +351,3 @@ def delete_image(image_name: str, user_name: str = Depends(verify_permission("de
     logger.info(f"Delete image ({image_name}, {user_name})")
 
     return RedirectResponse("/", status_code=303)
-
